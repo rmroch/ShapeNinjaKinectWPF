@@ -24,6 +24,10 @@ namespace ShapeNinjaKinectWPF
     {
         private KinectSensor sensor;
         private Shape currentShape;
+        private DepthImagePixel[] depthImagePixels;
+        private int recognizeCount = 0;
+        private ColorImagePoint lastPoint;
+        private Shape lastMarker;
 
         public MainWindow()
         {
@@ -53,9 +57,12 @@ namespace ShapeNinjaKinectWPF
                 //sensor.ColorFrameReady += SensorOnColorFrameReady;
 
                 sensor.DepthStream.Enable();
-                sensor.DepthFrameReady += SensorOnDepthFrameReasy;
+                //sensor.DepthFrameReady += SensorOnDepthFrameReasy;
 
                 sensor.SkeletonStream.Enable();
+                sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
+                sensor.SkeletonStream.EnableTrackingInNearRange = true;
+                sensor.AllFramesReady += sensor_AllFramesReady;
 
 
                 StartStopButton.Content = "Stop";
@@ -70,6 +77,100 @@ namespace ShapeNinjaKinectWPF
 
                 ImageCanvas.Children.Remove(currentShape);
             }
+        }
+
+        private void sensor_AllFramesReady(object sender, AllFramesReadyEventArgs e)
+        {
+            depthImagePixels = new DepthImagePixel[sensor.DepthStream.FramePixelDataLength];
+            using (var frame = e.OpenDepthImageFrame())
+            {
+                if (frame == null)
+                    return;
+                frame.CopyDepthImagePixelDataTo(depthImagePixels);
+            }
+
+            using (var frame = e.OpenColorImageFrame())
+            {
+                if (frame == null)
+                    return;
+                var bitmap = CreateBitmap(frame);
+                ImageCanvas.Background = new ImageBrush(bitmap);
+            }
+
+            using (var frame = e.OpenSkeletonFrame())
+            {
+                if (frame == null)
+                    return;
+
+                var skeletons = new Skeleton[frame.SkeletonArrayLength];
+                frame.CopySkeletonDataTo(skeletons);
+
+                var skeleton = skeletons.FirstOrDefault(s => s.TrackingState == SkeletonTrackingState.Tracked);
+                if (skeleton == null)
+                    return;
+
+                var position = skeleton.Joints[JointType.HandRight].Position;
+                var mapper = new CoordinateMapper(sensor);
+                var colorPoint = mapper.MapSkeletonPointToColorPoint(position, ColorImageFormat.InfraredResolution640x480Fps30);
+                var circle = CreateCircle(colorPoint);
+                
+
+                DetectChop(colorPoint, circle);
+            }
+        }
+
+        private void DetectChop(ColorImagePoint colorPoint, Shape circle)
+        {
+            if(lastMarker != null)
+            {
+                ImageCanvas.Children.Remove(lastMarker);
+            }
+
+            if(recognizeCount == 0 
+                && colorPoint.X > Canvas.GetLeft(currentShape) 
+                && (colorPoint.X < Canvas.GetLeft(currentShape) + currentShape.Width)
+                && colorPoint.Y > Canvas.GetTop(currentShape))
+            {
+                lastPoint = colorPoint;
+                recognizeCount = 1;
+                lastMarker = circle;
+                ImageCanvas.Children.Add(circle);
+                return;
+            }
+
+            if(recognizeCount > 0 && colorPoint.X > Canvas.GetLeft(currentShape)
+                && (colorPoint.X < Canvas.GetLeft(currentShape) + currentShape.Width)
+                && colorPoint.Y > lastPoint.Y)
+            {
+                recognizeCount++;
+                lastMarker = circle;
+                ImageCanvas.Children.Add(circle);
+            }
+            else
+            {
+                recognizeCount = 0;
+            }
+
+            if(recognizeCount > 6)
+            {
+                ImageCanvas.Children.Remove(currentShape);
+                currentShape = MakeRectangle();
+                ImageCanvas.Children.Add(currentShape);
+                recognizeCount = 0;
+            }
+        }
+
+        private Shape CreateCircle(ColorImagePoint colorPoint)
+        {
+            var circle = new Ellipse();
+            circle.Fill = Brushes.Red;
+            circle.Height = 20;
+            circle.Width = 20;
+            circle.Stroke = Brushes.Red;
+            circle.StrokeThickness = 2;
+            Canvas.SetLeft(circle, colorPoint.X);
+            Canvas.SetTop(circle, colorPoint.Y);
+            return circle;
         }
 
         private void SensorOnDepthFrameReasy(object sender, DepthImageFrameReadyEventArgs depthImageFrameReadyEventArgs)
@@ -130,7 +231,7 @@ namespace ShapeNinjaKinectWPF
             }
         }
 
-        private static BitmapSource CreateBitmap(ColorImageFrame frame)
+        private BitmapSource CreateBitmap(ColorImageFrame frame)
         {
             var pixelData = new byte[frame.PixelDataLength];
             frame.CopyPixelDataTo(pixelData);
@@ -142,14 +243,23 @@ namespace ShapeNinjaKinectWPF
             return bitmap;
         }
 
-        private static void GrayscaleData(byte[] pixelData)
+        private void GrayscaleData(byte[] pixelData)
         {
-            for(int i = 0; i < pixelData.Length; i += 4)
+            var mapper = new CoordinateMapper(sensor);
+            var depthPoints = new DepthImagePoint[640 * 480];
+            mapper.MapColorFrameToDepthFrame(ColorImageFormat.InfraredResolution640x480Fps30, DepthImageFormat.Resolution640x480Fps30, depthImagePixels, depthPoints);
+
+            for(int i = 0; i < depthPoints.Length; i++)
             {
-                var max = Math.Max(pixelData[i], Math.Max(pixelData[i + 1], pixelData[i + 2]));
-                pixelData[i] = max;
-                pixelData[i + 1] = max;
-                pixelData[i + 2] = max;
+                var point = depthPoints[i];
+                if(point.Depth > 600 || !KinectSensor.IsKnownPoint(point))
+                {
+                    var pixelDataIndex = i * 4;
+                    var max = Math.Max(pixelData[pixelDataIndex], Math.Max(pixelData[pixelDataIndex + 1], pixelData[pixelDataIndex + 2]));
+                    pixelData[pixelDataIndex] = max;
+                    pixelData[pixelDataIndex + 1] = max;
+                    pixelData[pixelDataIndex + 2] = max;
+                }
             }
         }
     }

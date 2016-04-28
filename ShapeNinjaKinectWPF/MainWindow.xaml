@@ -5,15 +5,14 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ShapeNinjaKinectWPF"
         mc:Ignorable="d"
-        Title="MainWindow" Height="350" Width="525">
+        Title="MainWindow" Height="580" Width="680">
     <Grid>
         <Label x:Name="label" Content="Connection ID:" HorizontalAlignment="Left" Margin="4,3,0,0" VerticalAlignment="Top"/>
         <Label x:Name="label1" Content="Status:" HorizontalAlignment="Left" Margin="7,24,0,0" VerticalAlignment="Top"/>
         <Label x:Name="ConnectionId" Content="" HorizontalAlignment="Left" Margin="97,3,0,0" VerticalAlignment="Top"/>
         <Label x:Name="Status" Content="" HorizontalAlignment="Left" Margin="97,0,0,269" VerticalAlignment="Bottom"/>
-        <Button x:Name="StartStopButton" Content="Start" HorizontalAlignment="Left" Margin="230,287,0,0" VerticalAlignment="Top" Width="75" Click="StartStopButton_Click"/>
-        <Canvas x:Name="ImageCanvas" HorizontalAlignment="Left" Height="226" Margin="10,56,0,0" VerticalAlignment="Top" Width="497"/>
-        <Button x:Name="TakePictureButton" Content="Picture" HorizontalAlignment="Left" Margin="128,287,0,0" VerticalAlignment="Top" Width="75" Click="TakePictureButton_Click"/>
+        <Button x:Name="StartStopButton" Content="Start" HorizontalAlignment="Left" Margin="587,24,0,0" VerticalAlignment="Top" Width="75" Click="StartStopButton_Click"/>
+        <Canvas x:Name="ImageCanvas" HorizontalAlignment="Left" Height="480" Margin="10,56,0,0" VerticalAlignment="Top" Width="640"/>
 
     </Grid>
 </Window>
